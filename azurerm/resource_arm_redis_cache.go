@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/redis/mgmt/2018-03-01/redis"
@@ -25,6 +24,7 @@ func resourceArmRedisCache() *schema.Resource {
 		Read:   resourceArmRedisCacheRead,
 		Update: resourceArmRedisCacheUpdate,
 		Delete: resourceArmRedisCacheDelete,
+
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -53,8 +53,8 @@ func resourceArmRedisCache() *schema.Resource {
 			"family": {
 				Type:             schema.TypeString,
 				Required:         true,
-				ValidateFunc:     validateRedisFamily,
-				DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
+				ValidateFunc:     validation.StringInSlice([]string{"c", "p"}, true),
+				DiffSuppressFunc: suppress.CaseDifference,
 			},
 
 			"sku_name": {
@@ -65,7 +65,7 @@ func resourceArmRedisCache() *schema.Resource {
 					string(redis.Standard),
 					string(redis.Premium),
 				}, true),
-				DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
+				DiffSuppressFunc: suppress.CaseDifference,
 			},
 
 			"shard_count": {
@@ -116,29 +116,41 @@ func resourceArmRedisCache() *schema.Resource {
 						},
 
 						"maxmemory_policy": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      "volatile-lru",
-							ValidateFunc: validateRedisMaxMemoryPolicy,
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "volatile-lru",
+							ValidateFunc: validation.StringInSlice([]string{
+								"noeviction",
+								"allkeys-lru",
+								"volatile-lru",
+								"allkeys-random",
+								"volatile-random",
+								"volatile-ttl",
+							}, true),
 						},
+
 						"rdb_backup_enabled": {
 							Type:     schema.TypeBool,
 							Optional: true,
 						},
+
 						"rdb_backup_frequency": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							ValidateFunc: validateRedisBackupFrequency,
+							ValidateFunc: validate.IntInSlice([]int{15, 30, 60, 360, 720, 1440}),
 						},
+
 						"rdb_backup_max_snapshot_count": {
 							Type:     schema.TypeInt,
 							Optional: true,
 						},
+
 						"rdb_storage_connection_string": {
 							Type:      schema.TypeString,
 							Optional:  true,
 							Sensitive: true,
 						},
+
 						"notify_keyspace_events": {
 							Type:     schema.TypeString,
 							Optional: true,
@@ -158,6 +170,7 @@ func resourceArmRedisCache() *schema.Resource {
 							DiffSuppressFunc: suppress.CaseDifference,
 							ValidateFunc:     validate.DayOfTheWeek(true),
 						},
+
 						"start_hour_utc": {
 							Type:         schema.TypeInt,
 							Optional:     true,
@@ -445,6 +458,7 @@ func resourceArmRedisCacheRead(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Error flattening `redis_configuration`: %+v", err)
 	}
+
 	if err := d.Set("redis_configuration", redisConfiguration); err != nil {
 		return fmt.Errorf("Error setting `redis_configuration`: %+v", err)
 	}
@@ -502,46 +516,46 @@ func redisStateRefreshFunc(ctx context.Context, client redis.Client, resourceGro
 func expandRedisConfiguration(d *schema.ResourceData) map[string]*string {
 	output := make(map[string]*string)
 
-	if v, ok := d.GetOk("redis_configuration.0.maxclients"); ok {
-		clients := strconv.Itoa(v.(int))
-		output["maxclients"] = utils.String(clients)
+	blocks, ok := d.GetOk("redis_configuration")
+	if !ok || len(blocks.([]interface{})) == 0 {
+		return output
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.maxmemory_delta"); ok {
-		delta := strconv.Itoa(v.(int))
-		output["maxmemory-delta"] = utils.String(delta)
+	cfg := blocks.([]interface{})[0].(map[string]interface{})
+
+	if v, ok := cfg["maxclients"]; ok {
+		output["maxclients"] = utils.String(strconv.Itoa(v.(int)))
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.maxmemory_reserved"); ok {
-		delta := strconv.Itoa(v.(int))
-		output["maxmemory-reserved"] = utils.String(delta)
+	if v, ok := cfg["maxmemory_delta"]; ok {
+		output["maxmemory-delta"] = utils.String(strconv.Itoa(v.(int)))
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.maxmemory_policy"); ok {
+	if v, ok := cfg["maxmemory_reserved"]; ok {
+		output["maxmemory-reserved"] = utils.String(strconv.Itoa(v.(int)))
+	}
+
+	if v, ok := cfg["maxmemory_policy"]; ok {
 		output["maxmemory-policy"] = utils.String(v.(string))
 	}
 
-	// Backup
-	if v, ok := d.GetOk("redis_configuration.0.rdb_backup_enabled"); ok {
-		delta := strconv.FormatBool(v.(bool))
-		output["rdb-backup-enabled"] = utils.String(delta)
+	if v, ok := cfg["rdb_backup_enabled"]; ok {
+		output["rdb-backup-enabled"] = utils.String(strconv.FormatBool(v.(bool)))
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.rdb_backup_frequency"); ok {
-		delta := strconv.Itoa(v.(int))
-		output["rdb-backup-frequency"] = utils.String(delta)
+	if v, ok := cfg["rdb_backup_frequency"]; ok {
+		output["rdb-backup-frequency"] = utils.String(strconv.Itoa(v.(int)))
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.rdb_backup_max_snapshot_count"); ok {
-		delta := strconv.Itoa(v.(int))
-		output["rdb-backup-max-snapshot-count"] = utils.String(delta)
+	if v, ok := cfg["rdb_backup_max_snapshot_count"]; ok {
+		output["rdb-backup-max-snapshot-count"] = utils.String(strconv.Itoa(v.(int)))
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.rdb_storage_connection_string"); ok {
+	if v, ok := cfg["rdb_storage_connection_string"]; ok {
 		output["rdb-storage-connection-string"] = utils.String(v.(string))
 	}
 
-	if v, ok := d.GetOk("redis_configuration.0.notify_keyspace_events"); ok {
+	if v, ok := cfg["notify_keyspace_events"]; ok {
 		output["notify-keyspace-events"] = utils.String(v.(string))
 	}
 
@@ -568,12 +582,11 @@ func expandRedisPatchSchedule(d *schema.ResourceData) (*redis.PatchSchedule, err
 		entries = append(entries, entry)
 	}
 
-	schedule := redis.PatchSchedule{
+	return &redis.PatchSchedule{
 		ScheduleEntries: &redis.ScheduleEntries{
 			ScheduleEntries: &entries,
 		},
-	}
-	return &schedule, nil
+	}, nil
 }
 
 func flattenRedisConfiguration(input map[string]*string) ([]interface{}, error) {
@@ -649,53 +662,4 @@ func flattenRedisPatchSchedules(schedule redis.PatchSchedule) []interface{} {
 	}
 
 	return outputs
-}
-
-func validateRedisFamily(v interface{}, _ string) (warnings []string, errors []error) {
-	value := strings.ToLower(v.(string))
-	families := map[string]bool{
-		"c": true,
-		"p": true,
-	}
-
-	if !families[value] {
-		errors = append(errors, fmt.Errorf("Redis Family can only be C or P"))
-	}
-	return warnings, errors
-}
-
-func validateRedisMaxMemoryPolicy(v interface{}, _ string) (warnings []string, errors []error) {
-	value := strings.ToLower(v.(string))
-	families := map[string]bool{
-		"noeviction":      true,
-		"allkeys-lru":     true,
-		"volatile-lru":    true,
-		"allkeys-random":  true,
-		"volatile-random": true,
-		"volatile-ttl":    true,
-	}
-
-	if !families[value] {
-		errors = append(errors, fmt.Errorf("Redis Max Memory Policy can only be 'noeviction' / 'allkeys-lru' / 'volatile-lru' / 'allkeys-random' / 'volatile-random' / 'volatile-ttl'"))
-	}
-
-	return warnings, errors
-}
-
-func validateRedisBackupFrequency(v interface{}, _ string) (warnings []string, errors []error) {
-	value := v.(int)
-	families := map[int]bool{
-		15:   true,
-		30:   true,
-		60:   true,
-		360:  true,
-		720:  true,
-		1440: true,
-	}
-
-	if !families[value] {
-		errors = append(errors, fmt.Errorf("Redis Backup Frequency can only be '15', '30', '60', '360', '720' or '1440'"))
-	}
-
-	return warnings, errors
 }

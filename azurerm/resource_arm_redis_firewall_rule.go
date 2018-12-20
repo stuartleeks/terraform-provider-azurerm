@@ -2,6 +2,7 @@ package azurerm
 
 import (
 	"fmt"
+	"github.com/hashicorp/terraform/helper/validation"
 	"log"
 
 	"regexp"
@@ -23,10 +24,13 @@ func resourceArmRedisFirewallRule() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
-				ValidateFunc: validateRedisFirewallRuleName,
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+				ValidateFunc: validation.StringMatch(
+					regexp.MustCompile("^[0-9a-zA-Z]+$"),
+					"Redis firewall rule may only contain alphanumeric characters.",
+				),
 			},
 
 			"redis_cache_name": {
@@ -141,14 +145,4 @@ func resourceArmRedisFirewallRuleDelete(d *schema.ResourceData, meta interface{}
 	}
 
 	return nil
-}
-
-func validateRedisFirewallRuleName(v interface{}, k string) (warnings []string, errors []error) {
-	value := v.(string)
-
-	if matched := regexp.MustCompile(`^[0-9a-zA-Z]+$`).Match([]byte(value)); !matched {
-		errors = append(errors, fmt.Errorf("%q may only contain alphanumeric characters", k))
-	}
-
-	return warnings, errors
 }
