@@ -189,24 +189,28 @@ func resourceArmNotificationHubRead(d *schema.ResourceData, meta interface{}) er
 	d.Set("name", resp.Name)
 	d.Set("namespace_name", namespaceName)
 	d.Set("resource_group_name", resourceGroup)
-	if location := resp.Location; location != nil {
-		d.Set("location", azureRMNormalizeLocation(*location))
-	}
 
 	if props := credentials.PnsCredentialsProperties; props != nil {
-		apns := flattenNotificationHubsAPNSCredentials(props.ApnsCredential)
-		if d.Set("apns_credential", apns); err != nil {
-			return fmt.Errorf("Error setting `apns_credential`: %+v", err)
-		}
-
-		gcm := flattenNotificationHubsGCMCredentials(props.GcmCredential)
-		if d.Set("gcm_credential", gcm); err != nil {
-			return fmt.Errorf("Error setting `gcm_credential`: %+v", err)
+		if err = setProperties(d, map[string]interface{}{
+			"apns_credential" : flattenNotificationHubsAPNSCredentials(props.ApnsCredential),
+			"gcm_credential" : flattenNotificationHubsGCMCredentials(props.GcmCredential),
+		}); err != nil {
+			return err
 		}
 	}
 
-	flattenAndSetTags(d, resp.Tags)
-	return nil
+	return setProperties(d, map[string]interface{}{
+		"location" : azureRMNormalizeLocationRef(resp.Location),
+		"tagss" : flattenTags(resp.Tags),
+	})
+}
+
+func setProperties(d *schema.ResourceData, properties map[string]interface{}) error {
+	for k, v := range properties {
+		if err := d.Set(k, v); err != nil {
+			return fmt.Errorf("Error setting `%q` to `%+v` : %+v", k, v, err)
+		}
+	}
 }
 
 func resourceArmNotificationHubDelete(d *schema.ResourceData, meta interface{}) error {

@@ -7,6 +7,7 @@ package azurerm
 import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
+	"strings"
 )
 
 func locationSchema() *schema.Schema {
@@ -19,6 +20,14 @@ func locationForDataSourceSchema() *schema.Schema {
 
 func deprecatedLocationSchema() *schema.Schema {
 	return azure.SchemaLocationDeprecated()
+}
+
+func azureRMNormalizeLocationRef(location *string) string {
+	if location == nil {
+		return ""
+	}
+
+	return strings.Replace(strings.ToLower(*location), " ", "", -1)
 }
 
 func azureRMNormalizeLocation(location interface{}) string {

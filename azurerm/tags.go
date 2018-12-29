@@ -114,3 +114,15 @@ func flattenAndSetTags(d *schema.ResourceData, tagMap map[string]*string) {
 
 	d.Set("tags", output)
 }
+
+func flattenTags(tagMap map[string]*string) map[string]interface{} {
+
+	// If tagsMap is nil, len(tagsMap) will be 0.
+	output := make(map[string]interface{}, len(tagMap))
+
+	for i, v := range tagMap {
+		output[i] = *v
+	}
+
+	return output
+}
