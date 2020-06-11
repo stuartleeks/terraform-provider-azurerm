@@ -13,6 +13,7 @@ import (
 	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/blob/blobs"
 	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/blob/containers"
 	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/datalakestore/filesystems"
+	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/datalakestore/paths"
 	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/file/directories"
 	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/file/shares"
 	"github.com/tombuildsstuff/giovanni/storage/2018-11-09/queue/queues"
@@ -23,6 +24,7 @@ import (
 type Client struct {
 	AccountsClient           *storage.AccountsClient
 	FileSystemsClient        *filesystems.Client
+	ADLSGen2PathsClient      *paths.Client
 	ManagementPoliciesClient storage.ManagementPoliciesClient
 	BlobServicesClient       storage.BlobServicesClient
 	CachesClient             *storagecache.CachesClient
@@ -39,6 +41,9 @@ func NewClient(options *common.ClientOptions) *Client {
 
 	fileSystemsClient := filesystems.NewWithEnvironment(options.Environment)
 	options.ConfigureClient(&fileSystemsClient.Client, options.StorageAuthorizer)
+
+	adlsGen2PathsClient := paths.NewWithEnvironment(options.Environment)
+	options.ConfigureClient(&adlsGen2PathsClient.Client, options.StorageAuthorizer)
 
 	managementPoliciesClient := storage.NewManagementPoliciesClientWithBaseURI(options.ResourceManagerEndpoint, options.SubscriptionId)
 	options.ConfigureClient(&managementPoliciesClient.Client, options.ResourceManagerAuthorizer)
@@ -57,6 +62,7 @@ func NewClient(options *common.ClientOptions) *Client {
 	client := Client{
 		AccountsClient:           &accountsClient,
 		FileSystemsClient:        &fileSystemsClient,
+		ADLSGen2PathsClient:      &adlsGen2PathsClient,
 		ManagementPoliciesClient: managementPoliciesClient,
 		BlobServicesClient:       blobServicesClient,
 		CachesClient:             &cachesClient,
