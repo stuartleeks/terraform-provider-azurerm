@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/clients"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/storage/parsers"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/timeouts"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
@@ -79,7 +81,6 @@ func resourceArmStorageDataLakeGen2Path() *schema.Resource {
 }
 
 func resourceArmStorageDataLakeGen2PathCreate(d *schema.ResourceData, meta interface{}) error {
-	return fmt.Errorf("Not implemented")
 	accountsClient := meta.(*clients.Client).Storage.AccountsClient
 	client := meta.(*clients.Client).Storage.ADLSGen2PathsClient
 	ctx, cancel := timeouts.ForCreate(meta.(*clients.Client).StopContext, d)
@@ -105,18 +106,18 @@ func resourceArmStorageDataLakeGen2PathCreate(d *schema.ResourceData, meta inter
 
 	id := client.GetResourceID(storageID.Name, fileSystemName, path)
 
-	// if features.ShouldResourcesBeImported() {
-	// 	resp, err := client.GetProperties(ctx, storageID.Name, fileSystemName)
-	// 	if err != nil {
-	// 		if !utils.ResponseWasNotFound(resp.Response) {
-	// 			return fmt.Errorf("Error checking for existence of existing File System %q (Account %q): %+v", fileSystemName, storageID.Name, err)
-	// 		}
-	// 	}
+	if features.ShouldResourcesBeImported() {
+		resp, err := client.GetProperties(ctx, storageID.Name, fileSystemName, path)
+		if err != nil {
+			if !utils.ResponseWasNotFound(resp.Response) {
+				return fmt.Errorf("Error checking for existence of existing Path %q in  File System %q (Account %q): %+v", path, fileSystemName, storageID.Name, err)
+			}
+		}
 
-	// 	if !utils.ResponseWasNotFound(resp.Response) {
-	// 		return tf.ImportAsExistsError("azurerm_storage_data_lake_gen2_filesystem", id)
-	// 	}
-	// }
+		if !utils.ResponseWasNotFound(resp.Response) {
+			return tf.ImportAsExistsError("azurerm_storage_data_lake_gen2_path", id)
+		}
+	}
 
 	log.Printf("[INFO] Creating Path %q in File System %q in Storage Account %q.", path, fileSystemName, storageID.Name)
 	input := paths.CreateInput{
@@ -127,12 +128,11 @@ func resourceArmStorageDataLakeGen2PathCreate(d *schema.ResourceData, meta inter
 	}
 
 	d.SetId(id)
-	return nil
-	// return resourceArmStorageDataLakeGen2FileSystemRead(d, meta)
+	return resourceArmStorageDataLakeGen2PathRead(d, meta)
 }
 
 func resourceArmStorageDataLakeGen2PathUpdate(d *schema.ResourceData, meta interface{}) error {
-	return fmt.Errorf("Not implemented")
+	return fmt.Errorf("Not implemented - update")
 	// accountsClient := meta.(*clients.Client).Storage.AccountsClient
 	// client := meta.(*clients.Client).Storage.FileSystemsClient
 	// ctx, cancel := timeouts.ForUpdate(meta.(*clients.Client).StopContext, d)
@@ -173,39 +173,38 @@ func resourceArmStorageDataLakeGen2PathUpdate(d *schema.ResourceData, meta inter
 }
 
 func resourceArmStorageDataLakeGen2PathRead(d *schema.ResourceData, meta interface{}) error {
-	return fmt.Errorf("Not implemented")
-	// 	client := meta.(*clients.Client).Storage.FileSystemsClient
-	// 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
-	// 	defer cancel()
+	client := meta.(*clients.Client).Storage.ADLSGen2PathsClient
+	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
+	defer cancel()
 
-	// 	id, err := filesystems.ParseResourceID(d.Id())
-	// 	if err != nil {
-	// 		return err
-	// 	}
+	id, err := paths.ParseResourceID(d.Id())
+	if err != nil {
+		return err
+	}
 
-	// 	// TODO: what about when this has been removed?
-	// 	resp, err := client.GetProperties(ctx, id.AccountName, id.DirectoryName)
-	// 	if err != nil {
-	// 		if utils.ResponseWasNotFound(resp.Response) {
-	// 			log.Printf("[INFO] File System %q does not exist in Storage Account %q - removing from state...", id.DirectoryName, id.AccountName)
-	// 			d.SetId("")
-	// 			return nil
-	// 		}
+	resp, err := client.GetProperties(ctx, id.AccountName, id.FileSystemName, id.Path)
+	if err != nil {
+		if utils.ResponseWasNotFound(resp.Response) {
+			log.Printf("[INFO] Path %q does not exist in File System %q in Storage Account %q - removing from state...", id.Path, id.FileSystemName, id.AccountName)
+			d.SetId("")
+			return nil
+		}
 
-	// 		return fmt.Errorf("Error retrieving File System %q in Storage Account %q: %+v", id.DirectoryName, id.AccountName, err)
-	// 	}
+		return fmt.Errorf("Error retrieving Path %q in File System %q in Storage Account %q: %+v", id.Path, id.FileSystemName, id.AccountName, err)
+	}
 
-	// 	d.Set("name", id.DirectoryName)
+	d.Set("path", id.Path)
 
-	// 	if err := d.Set("properties", resp.Properties); err != nil {
-	// 		return fmt.Errorf("Error setting `properties`: %+v", err)
-	// 	}
+	// TODO Add properties
+	// if err := d.Set("properties", resp.Properties); err != nil {
+	// 	return fmt.Errorf("Error setting `properties`: %+v", err)
+	// }
 
-	// 	return nil
+	return nil
 }
 
 func resourceArmStorageDataLakeGen2PathDelete(d *schema.ResourceData, meta interface{}) error {
-	return fmt.Errorf("Not implemented")
+	return fmt.Errorf("Not implemented - Delete")
 	// client := meta.(*clients.Client).Storage.FileSystemsClient
 	// ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	// defer cancel()

@@ -5,7 +5,11 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/acceptance"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/clients"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/storage/parsers"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
 func TestAccAzureRMStorageDataLakeGen2Path_basic(t *testing.T) {
@@ -18,11 +22,11 @@ func TestAccAzureRMStorageDataLakeGen2Path_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccAzureRMStorageDataLakeGen2Path_basic(data),
-				// Check: resource.ComposeTestCheckFunc(
-				// 	testCheckAzureRMStorageDataLakeGen2FileSystemExists(data.ResourceName),
-				// ),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMStorageDataLakeGen2PathExists(data.ResourceName),
+				),
 			},
-			data.ImportStep(),
+			// data.ImportStep(),
 		},
 	})
 }
@@ -72,34 +76,35 @@ func TestAccAzureRMStorageDataLakeGen2Path_basic(t *testing.T) {
 // 	})
 // }
 
-// func testCheckAzureRMStorageDataLakeGen2FileSystemExists(resourceName string) resource.TestCheckFunc {
-// 	return func(s *terraform.State) error {
-// 		client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.FileSystemsClient
-// 		ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
+func testCheckAzureRMStorageDataLakeGen2PathExists(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.ADLSGen2PathsClient
+		ctx := acceptance.AzureProvider.Meta().(*clients.Client).StopContext
 
-// 		rs, ok := s.RootModule().Resources[resourceName]
-// 		if !ok {
-// 			return fmt.Errorf("Not found: %s", resourceName)
-// 		}
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("Not found: %s", resourceName)
+		}
 
-// 		fileSystemName := rs.Primary.Attributes["name"]
-// 		storageID, err := parsers.ParseAccountID(rs.Primary.Attributes["storage_account_id"])
-// 		if err != nil {
-// 			return err
-// 		}
+		fileSystemName := rs.Primary.Attributes["filesystem_name"]
+		path := rs.Primary.Attributes["path"]
+		storageID, err := parsers.ParseAccountID(rs.Primary.Attributes["storage_account_id"])
+		if err != nil {
+			return err
+		}
 
-// 		resp, err := client.GetProperties(ctx, storageID.Name, fileSystemName)
-// 		if err != nil {
-// 			if utils.ResponseWasNotFound(resp.Response) {
-// 				return fmt.Errorf("Bad: File System %q (Account %q) does not exist", fileSystemName, storageID.Name)
-// 			}
+		resp, err := client.GetProperties(ctx, storageID.Name, fileSystemName, path)
+		if err != nil {
+			if utils.ResponseWasNotFound(resp.Response) {
+				return fmt.Errorf("Bad: Path %q in File System %q (Account %q) does not exist", path, fileSystemName, storageID.Name)
+			}
 
-// 			return fmt.Errorf("Bad: Get on FileSystemsClient: %+v", err)
-// 		}
+			return fmt.Errorf("Bad: Get on ADLSGen2PathsClient: %+v", err)
+		}
 
-// 		return nil
-// 	}
-// }
+		return nil
+	}
+}
 
 // func testCheckAzureRMStorageDataLakeGen2FileSystemDestroy(s *terraform.State) error {
 // 	client := acceptance.AzureProvider.Meta().(*clients.Client).Storage.FileSystemsClient
@@ -134,10 +139,10 @@ func testAccAzureRMStorageDataLakeGen2Path_basic(data acceptance.TestData) strin
 
 resource "azurerm_storage_data_lake_gen2_path" "test" {
   storage_account_id = azurerm_storage_account.test.id
-  filesystem_name    = "acctest-%[2]d"
-  path               = "test"
+  filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.test.name
+  path               = "testpath"
 }
-`, template, data.RandomInteger)
+`, template)
 }
 
 // func testAccAzureRMStorageDataLakeGen2FileSystem_requiresImport(data acceptance.TestData) string {
@@ -170,11 +175,26 @@ resource "azurerm_storage_account" "test" {
   account_kind             = "BlobStorage"
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  is_hns_enabled           = true
 }
+
+data "azurerm_client_config" "current" {
+}
+
+resource "azurerm_role_assignment" "storageAccountRoleAssignment" {
+  scope                = azurerm_storage_account.test.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         =  data.azurerm_client_config.current.object_id
+}
+
+
 resource "azurerm_storage_data_lake_gen2_filesystem" "test" {
-  name               = "acctest-%[1]d"
+  name               = "fstest"
   storage_account_id = azurerm_storage_account.test.id
+  depends_on = [
+    azurerm_role_assignment.storageAccountRoleAssignment
+  ]
 }
-  
+
 `, data.RandomInteger, data.Locations.Primary, data.RandomString)
 }
