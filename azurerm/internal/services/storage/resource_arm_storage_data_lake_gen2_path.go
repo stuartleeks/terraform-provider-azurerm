@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/clients"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
@@ -76,10 +77,23 @@ func resourceArmStorageDataLakeGen2Path() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
-				//TODO ValidateFunc: validateArmStorageDataLakeGen2FileSystemName,
 			},
 
-			// TODO type - file/folder
+			"resource": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringInSlice([]string{"file", "directory"}, false),
+			},
+
+			// TODO - properties not currently working in giovanni
+			// "properties": MetaDataSchema(),
+
+			"content": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
 
 			// TODO add ace property
 		},
@@ -109,6 +123,20 @@ func resourceArmStorageDataLakeGen2PathCreate(d *schema.ResourceData, meta inter
 
 	fileSystemName := d.Get("filesystem_name").(string)
 	path := d.Get("path").(string)
+	content := d.Get("content").(string)
+	// propertiesRaw := d.Get("properties").(map[string]interface{})
+	// properties := ExpandMetaData(propertiesRaw)
+
+	resourceString := d.Get("resource").(string)
+	var resource paths.PathResource
+	switch resourceString {
+	case "file":
+		resource = paths.PathResourceFile
+	case "directory":
+		resource = paths.PathResourceDirectory
+	default:
+		return fmt.Errorf("Unhandled resource type %q", resourceString)
+	}
 
 	id := client.GetResourceID(storageID.Name, fileSystemName, path)
 
@@ -127,8 +155,14 @@ func resourceArmStorageDataLakeGen2PathCreate(d *schema.ResourceData, meta inter
 
 	log.Printf("[INFO] Creating Path %q in File System %q in Storage Account %q.", path, fileSystemName, storageID.Name)
 	input := paths.CreateInput{
-		Resource: paths.PathResourceFile,
+		Resource: resource,
+		// Properties: properties,
 	}
+	if content != "" {
+		contentBuf := []byte(content)
+		input.Content = &contentBuf
+	}
+
 	if _, err := client.Create(ctx, storageID.Name, fileSystemName, path, input); err != nil {
 		return fmt.Errorf("Error creating Path %q in File System %q in Storage Account %q: %s", path, fileSystemName, storageID.Name, err)
 	}
@@ -201,7 +235,9 @@ func resourceArmStorageDataLakeGen2PathRead(d *schema.ResourceData, meta interfa
 
 	d.Set("path", id.Path)
 
-	// TODO Add properties
+	d.Set("resource", resp.ResourceType)
+
+	// TODO Add properties once working in giovanni
 	// if err := d.Set("properties", resp.Properties); err != nil {
 	// 	return fmt.Errorf("Error setting `properties`: %+v", err)
 	// }

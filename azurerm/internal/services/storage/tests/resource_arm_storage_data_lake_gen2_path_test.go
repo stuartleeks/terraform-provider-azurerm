@@ -31,8 +31,28 @@ func TestAccAzureRMStorageDataLakeGen2Path_basic(t *testing.T) {
 	})
 }
 
-func TestAccAzureRMStorageDataLakeGen2Path_requiresImport(t *testing.T) {
-	data := acceptance.BuildTestData(t, "azurerm_storage_data_lake_gen2_path", "test")
+// TODO - update when properties are working, or when another value can be modified
+// func TestAccAzureRMStorageDataLakeGen2Path_requiresImport(t *testing.T) {
+// 	data := acceptance.BuildTestData(t, "azurerm_storage_data_lake_gen2_path", "test")
+
+// 	resource.ParallelTest(t, resource.TestCase{
+// 		PreCheck:     func() { acceptance.PreCheck(t) },
+// 		Providers:    acceptance.SupportedProviders,
+// 		CheckDestroy: testCheckAzureRMStorageDataLakeGen2FileSystemDestroy,
+// 		Steps: []resource.TestStep{
+// 			{
+// 				Config: testAccAzureRMStorageDataLakeGen2Path_basic(data),
+// 				Check: resource.ComposeTestCheckFunc(
+// 					testCheckAzureRMStorageDataLakeGen2PathExists(data.ResourceName),
+// 				),
+// 			},
+// 			data.RequiresImportErrorStep(testAccAzureRMStorageDataLakeGen2Path_requiresImport),
+// 		},
+// 	})
+// }
+
+func TestAccAzureRMStorageDataLakeGen2Path_directoryAndFile(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_storage_data_lake_gen2_path", "test_file")
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { acceptance.PreCheck(t) },
@@ -40,12 +60,12 @@ func TestAccAzureRMStorageDataLakeGen2Path_requiresImport(t *testing.T) {
 		CheckDestroy: testCheckAzureRMStorageDataLakeGen2FileSystemDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccAzureRMStorageDataLakeGen2Path_basic(data),
+				Config: testAccAzureRMStorageDataLakeGen2Path_directoryAndFile(data),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMStorageDataLakeGen2PathExists(data.ResourceName),
 				),
 			},
-			data.RequiresImportErrorStep(testAccAzureRMStorageDataLakeGen2Path_requiresImport),
+			data.ImportStep(),
 		},
 	})
 }
@@ -142,6 +162,7 @@ resource "azurerm_storage_data_lake_gen2_path" "test" {
   storage_account_id = azurerm_storage_account.test.id
   filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.test.name
   path               = "testpath"
+  resource           = "file"
 }
 `, template)
 }
@@ -155,7 +176,31 @@ resource "azurerm_storage_data_lake_gen2_path" "import" {
   storage_account_id = azurerm_storage_data_lake_gen2_path.test.storage_account_id
   filesystem_name    = azurerm_storage_data_lake_gen2_path.test.filesystem_name
   path               = azurerm_storage_data_lake_gen2_path.test.path
+  resource           = azurerm_storage_data_lake_gen2_path.test.resource
 }
+`, template)
+}
+
+func testAccAzureRMStorageDataLakeGen2Path_directoryAndFile(data acceptance.TestData) string {
+	template := testAccAzureRMStorageDataLakeGen2Path_template(data)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_storage_data_lake_gen2_path" "test_directory" {
+  storage_account_id = azurerm_storage_account.test.id
+  filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.test.name
+  path               = "testdir"
+  resource           = "directory"
+}
+
+resource "azurerm_storage_data_lake_gen2_path" "test_file" {
+  storage_account_id = azurerm_storage_account.test.id
+  filesystem_name    = azurerm_storage_data_lake_gen2_filesystem.test.name
+  path               = "testfile"
+  resource           = "file"
+  depends_on = [ azurerm_storage_data_lake_gen2_path.test_directory]
+}
+  
 `, template)
 }
 
