@@ -32,4 +32,6 @@ replace github.com/Azure/go-autorest/autorest => github.com/tombuildsstuff/go-au
 
 replace github.com/Azure/go-autorest/autorest/azure/auth => github.com/tombuildsstuff/go-autorest/autorest/azure/auth v0.4.3-0.20200416184303-d4e299a3c04a
 
+replace github.com/tombuildsstuff/giovanni => /root/giovanni
+
 go 1.13
