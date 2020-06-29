@@ -35,7 +35,7 @@ fmt:
 fmtcheck:
 	@sh "$(CURDIR)/scripts/gofmtcheck.sh"
 	@sh "$(CURDIR)/scripts/timeouts.sh"
-	@sh "$(CURDIR)/scripts/check-test-package.sh"
+	@bash "$(CURDIR)/scripts/check-test-package.sh"
 
 terrafmt:
 	@echo "==> Fixing acceptance test terraform blocks code with terrafmt..."
