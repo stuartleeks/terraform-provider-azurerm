@@ -1408,10 +1408,16 @@ func flattenContainerAppContainers(input *[]containerapps.Container) []Container
 	return result
 }
 
+type SecretVolumeItem struct {
+	Path      string `tfschema:"path"`
+	SecretRef string `tfschema:"secret_ref"`
+}
+
 type ContainerVolume struct {
-	Name        string `tfschema:"name"`
-	StorageName string `tfschema:"storage_name"`
-	StorageType string `tfschema:"storage_type"`
+	Name        string             `tfschema:"name"`
+	StorageName string             `tfschema:"storage_name"`
+	StorageType string             `tfschema:"storage_type"`
+	Secrets     []SecretVolumeItem `tfschema:"secrets"`
 }
 
 func ContainerVolumeSchema() *pluginsdk.Schema {
@@ -1443,6 +1449,23 @@ func ContainerVolumeSchema() *pluginsdk.Schema {
 					Optional:     true,
 					ValidateFunc: validate.ManagedEnvironmentStorageName,
 					Description:  "The name of the `AzureFile` storage. Required when `storage_type` is `AzureFile`",
+				},
+
+				"secrets": {
+					Type:     pluginsdk.TypeList,
+					Optional: true,
+					Elem: &pluginsdk.Resource{
+						Schema: map[string]*pluginsdk.Schema{
+							"secret_ref": {
+								Type:     pluginsdk.TypeString,
+								Required: true,
+							},
+							"path": {
+								Type:     pluginsdk.TypeString,
+								Optional: true,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -1491,6 +1514,19 @@ func expandContainerAppVolumes(input []ContainerVolume) *[]containerapps.Volume 
 		if v.StorageType != "" {
 			storageType := containerapps.StorageType(v.StorageType)
 			volume.StorageType = &storageType
+		}
+		if len(v.Secrets) > 0 {
+			secrets := make([]containerapps.SecretVolumeItem, 0)
+			for _, s := range v.Secrets {
+				secret := containerapps.SecretVolumeItem{
+					SecretRef: pointer.To(s.SecretRef),
+				}
+				if s.Path != "" {
+					secret.Path = pointer.To(s.Path)
+				}
+				secrets = append(secrets, secret)
+			}
+			volume.Secrets = &secrets
 		}
 		volumes = append(volumes, volume)
 	}
